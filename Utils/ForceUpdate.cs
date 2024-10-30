@@ -21,7 +21,7 @@ public class GitHubAsset
 
 public class ForceUpdate
 {
-    private const string GITHUB_API_URL = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/releases/latest";
+    private const string GITHUB_API_URL = "https://api.github.com/repos/PlayInfinityy/octonev2/releases/latest";
 
     public async Task CheckAndUpdate()
     {
@@ -35,7 +35,6 @@ public class ForceUpdate
         {
             string downloadUrl = release.assets[0].browser_download_url;
             string updatePath = Path.Combine(Path.GetTempPath(), "OctoneUpdate.exe");
-
             await DownloadAndReplace(downloadUrl, updatePath);
         }
     }
@@ -49,7 +48,6 @@ public class ForceUpdate
         string batchPath = Path.Combine(Path.GetTempPath(), "update.bat");
         string currentExe = Application.ExecutablePath;
 
-        // Create batch file to replace current exe
         var batchCommands = new[]
         {
             "@echo off",
@@ -65,3 +63,4 @@ public class ForceUpdate
         Application.Exit();
     }
 }
+

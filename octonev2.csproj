@@ -13,6 +13,7 @@
     <PackageReference Include="MySql.Data" Version="9.1.0" />
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="Obfuscar" Version="2.2.38" />
+    <EmbeddedResource Include="Resources\octone_logo.png" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

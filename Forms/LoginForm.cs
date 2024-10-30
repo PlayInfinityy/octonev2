@@ -14,6 +14,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Data;
 using Timer = System.Windows.Forms.Timer;
+using System.Reflection;
 
 
 
@@ -399,19 +400,10 @@ namespace octonev2.Forms
 
         private static Image LoadLogo()
         {
-            try
-            {
-                string projectRoot = Directory.GetCurrentDirectory();
-                string rootPath = Path.GetFullPath(Path.Combine(projectRoot, "../../.."));
-                string logoPath = Path.Combine(rootPath, "Resources", "octone_logo.png");
-                return Image.FromFile(logoPath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error loading logo: {ex.Message}", "Resource Error");
-                return new Bitmap(1, 1);
-            }
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("octonev2.Resources.octone_logo.png");
+            return Image.FromStream(stream);
         }
+
 
         private static void ShowError(string message)
         {

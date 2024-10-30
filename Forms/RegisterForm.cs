@@ -11,6 +11,7 @@ using octonev2.Theme;
 using System.Security.Cryptography;
 using System.Text;
 using System.Data;
+using System.Reflection;
 
 namespace octonev2.Forms
 {
@@ -167,26 +168,10 @@ namespace octonev2.Forms
 
             using var cmd = new MySqlCommand(query, connection);
             cmd.Parameters.AddWithValue("@key", licenseKey);
-
-            // Log the exact query being executed
-            MessageBox.Show($"Executing query: {cmd.CommandText}\nWith key value: {licenseKey}", "Debug");
-
             using var reader = await cmd.ExecuteReaderAsync();
-            var isValid = await reader.ReadAsync();
-
-            // Log the result
-            if (isValid)
-            {
-                string keyValue = reader.GetString("key_value");
-                MessageBox.Show($"Found key in database: {keyValue}", "Debug");
-            }
-            else
-            {
-                MessageBox.Show("No key found in database", "Debug");
-            }
-
-            return isValid;
+            return await reader.ReadAsync();
         }
+
 
         private async Task HandleRegistration()
         {
@@ -248,14 +233,12 @@ namespace octonev2.Forms
         {
             string hashedPassword = HashPassword(passwordBox.Text);
             using var transaction = await connection.BeginTransactionAsync();
-
             try
             {
                 string insertUserQuery = @"
-            INSERT INTO users (username, password_hash) 
-            VALUES (@username, @password);
-            SELECT LAST_INSERT_ID();";
-
+                INSERT INTO users (username, password_hash) 
+                VALUES (@username, @password);
+                SELECT LAST_INSERT_ID();";
                 long userId;
                 using (var cmd = new MySqlCommand(insertUserQuery, connection, transaction))
                 {
@@ -264,21 +247,22 @@ namespace octonev2.Forms
                     userId = Convert.ToInt64(await cmd.ExecuteScalarAsync());
                 }
 
-                string redeemKeyQuery = @"
-            INSERT INTO key_redemptions (user_id, key_value, product_id, expires_at)
-            SELECT 
-                @userId,
-                ak.key_value,
-                ak.product_id,
-                DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ak.duration_days DAY)
-            FROM available_keys ak
-            WHERE ak.key_value = @key;
+                string moveKeyQuery = @"
+    INSERT INTO key_redemptions (user_id, key_value, product_id, expires_at)
+    SELECT 
+        @userId,
+        ak.key_value,
+        ak.product_id,
+        DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ak.duration_days DAY)
+    FROM available_keys ak
+    WHERE ak.key_value = @key;
 
-            UPDATE available_keys 
-            SET is_used = TRUE 
-            WHERE key_value = @key;";
+    UPDATE available_keys 
+    SET is_used = TRUE 
+    WHERE key_value = @key;";
 
-                using (var cmd = new MySqlCommand(redeemKeyQuery, connection, transaction))
+
+                using (var cmd = new MySqlCommand(moveKeyQuery, connection, transaction))
                 {
                     cmd.Parameters.AddWithValue("@userId", userId);
                     cmd.Parameters.AddWithValue("@key", licenseKeyBox.Text);
@@ -294,7 +278,6 @@ namespace octonev2.Forms
                 throw;
             }
         }
-
 
 
         private async Task ShowLoginForm()
@@ -336,19 +319,10 @@ namespace octonev2.Forms
 
         private static Image LoadLogo()
         {
-            try
-            {
-                string projectRoot = Directory.GetCurrentDirectory();
-                string rootPath = Path.GetFullPath(Path.Combine(projectRoot, "../../.."));
-                string logoPath = Path.Combine(rootPath, "Resources", "octone_logo.png");
-                return Image.FromFile(logoPath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error loading logo: {ex.Message}", "Resource Error");
-                return new Bitmap(1, 1);
-            }
+            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("octonev2.Resources.octone_logo.png");
+            return Image.FromStream(stream);
         }
+
 
         protected override void OnPaint(PaintEventArgs e)
         {
