@@ -1,0 +1,24 @@
+<?xml version='1.0'?>
+<Obfuscator>
+  <Var name="InPath" value="bin\Debug\net8.0-windows" />
+  <Var name="OutPath" value="bin\Release\Obfuscated" />
+  <Var name="KeepPublicApi" value="false" />
+  <Var name="HidePrivateApi" value="true" />
+  <Var name="ReuseNames" value="true" />
+  <Var name="UseUnicodeNames" value="true" />
+  <Var name="RegenerateDebugInfo" value="false" />
+  <Var name="MarkedOnly" value="false" />
+  <Var name="RenameProperties" value="true" />
+  <Var name="RenameEvents" value="true" />
+  <Var name="RenameFields" value="true" />
+  <Var name="OptimizeMethods" value="true" />
+  <Var name="SuppressIldasm" value="true" />
+  
+  <Module file="$(InPath)\octonev2.dll">
+    <SkipType name="Program" />
+    <StringEncryption />
+    <ControlFlow />
+    <AntiTamper />
+    <AntiDebug />
+  </Module>
+</Obfuscator>
