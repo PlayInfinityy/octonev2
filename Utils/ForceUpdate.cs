@@ -1,66 +1,71 @@
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using System.Diagnostics;
-using System.Net.Http.Headers;
-using System.Text.Json;
+using System.IO;
+using System.Reflection;
 
-
-
-
-public class GitHubRelease
+namespace octonev2.Utils
 {
-    public string tag_name { get; set; }
-    public List<GitHubAsset> assets { get; set; }
-}
-
-public class GitHubAsset
-{
-    public string browser_download_url { get; set; }
-}
-
-
-
-
-public class ForceUpdate
-{
-    private const string GITHUB_API_URL = "https://api.github.com/repos/PlayInfinityy/octonev2/releases/latest";
-
-    public async Task CheckAndUpdate()
+    public class ForceUpdate
     {
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("OctoneLoader", "1.0"));
+        private const string VERSION_URL = "YOUR_VERSION_CHECK_URL";
+        private const string UPDATE_URL = "YOUR_UPDATE_FILE_URL";
+        private readonly string currentVersion;
 
-        var response = await client.GetStringAsync(GITHUB_API_URL);
-        var release = JsonSerializer.Deserialize<GitHubRelease>(response);
-
-        if (release.assets.Count > 0)
+        public ForceUpdate()
         {
-            string downloadUrl = release.assets[0].browser_download_url;
-            string updatePath = Path.Combine(Path.GetTempPath(), "OctoneUpdate.exe");
-            await DownloadAndReplace(downloadUrl, updatePath);
+            currentVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString();
         }
-    }
 
-    private async Task DownloadAndReplace(string downloadUrl, string updatePath)
-    {
-        using var client = new HttpClient();
-        var bytes = await client.GetByteArrayAsync(downloadUrl);
-        await File.WriteAllBytesAsync(updatePath, bytes);
-
-        string batchPath = Path.Combine(Path.GetTempPath(), "update.bat");
-        string currentExe = Application.ExecutablePath;
-
-        var batchCommands = new[]
+        public async Task CheckAndUpdate()
         {
-            "@echo off",
-            "timeout /t 1 /nobreak > NUL",
-            $"copy /Y \"{updatePath}\" \"{currentExe}\"",
-            $"start \"\" \"{currentExe}\"",
-            "del \"%~f0\"",
-            "exit"
-        };
+            try
+            {
+                using var client = new HttpClient();
+                var latestVersion = await client.GetStringAsync(VERSION_URL);
 
-        await File.WriteAllLinesAsync(batchPath, batchCommands);
-        Process.Start(batchPath);
-        Application.Exit();
+                if (latestVersion.Trim() != currentVersion)
+                {
+                    var result = MessageBox.Show(
+                        $"New version {latestVersion} available. Current version: {currentVersion}\nWould you like to update now?",
+                        "Update Available",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        await PerformUpdate();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Update check failed: {ex.Message}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task PerformUpdate()
+        {
+            using var client = new HttpClient();
+            var updateData = await client.GetByteArrayAsync(UPDATE_URL);
+            var tempPath = Path.GetTempFileName();
+            File.WriteAllBytes(tempPath, updateData);
+
+            var updaterPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "Updater.exe");
+            Process.Start(updaterPath, $"\"{tempPath}\" \"{Application.ExecutablePath}\"");
+            Application.Exit();
+        }
+
+        private string GetPublishedExePath()
+        {
+            return Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "bin", "Release", "net8.0-windows", "win-x64", "publish",
+                "octonev2.exe"
+            );
+        }
+
     }
 }
-

